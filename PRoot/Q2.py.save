@@ -1,0 +1,80 @@
+'''
+import ROOT
+
+def Pion_kaonmass():
+
+    file = ROOT.TFile.Open("/Users/ndawyalmhzry/Master_project/ComputationalCourse/Assignments/PythonRootMat/sorted_mass.root")
+
+    masspion_hist = file.Get("pion")
+    masskaon_hist = file.Get("kaon")
+
+    nbins = masspion_hist.GetNbinsX()
+
+    hist_2d = ROOT.TH2F("","",
+                         nbins, masspion_hist.GetXaxis().GetXmin(), masspion_hist.GetXaxis().GetXmax(),
+                         nbins, masskaon_hist.GetXaxis().GetXmin(), masskaon_hist.GetXaxis().GetXmax())
+    hist_2d.SetStats(0)
+    hist_2d.GetXaxis().SetTitel("masspion")
+    hist_2d.GetYaxis().SetTitel("masskaon")
+
+    for i in range(1, ndins + 1):
+        masspion_value = masspion_hist.GetBinContent(i)
+        masskaon_value = masskaon_hist.GetBinContent(i)
+
+        masspion_bin_center = masspion_hist.GetBinCenter(i)
+        masskaon_bin_center = masskaon_hist.GetBinCenter(i)
+
+        hist_2d.Fill(masspion_hist.GetBinCenter(i), masskaon_hist.GetBinCenter(i) )
+    C = ROOT.TCanvas("","")
+    hist_2d.Draw("COLZ")
+    C.Update()
+    ROOT.gApplication.Run()
+   # C.SaveAs("plotss/masspion_kaon_2D_Histogram.png")
+Pion_kaonmass()
+'''
+
+import ROOT
+
+def Pion_kaonmass():
+
+    # Correct file path, no line break
+    file = ROOT.TFile.Open("/Users/ndawyalmhzry/Master_project/ComputationalCourse/Assignments/PythonRootMat/sorted_mass.root")
+
+    # Fetch the histograms for pion and kaon
+    masspion_hist = file.Get("pion")
+    masskaon_hist = file.Get("kaon")
+
+    # Get the number of bins
+    nbins = masspion_hist.GetNbinsX()
+
+    # Create a 2D histogram for pion vs kaon
+    hist_2d = ROOT.TH2F("","",
+                        nbins, masspion_hist.GetXaxis().GetXmin(), masspion_hist.GetXaxis().GetXmax(),
+                        nbins, masskaon_hist.GetXaxis().GetXmin(), masskaon_hist.GetXaxis().GetXmax())
+
+    hist_2d.SetStats(0)
+    
+    # Corrected title settings
+    hist_2d.GetXaxis().SetTitle("masspion")
+    hist_2d.GetYaxis().SetTitle("masskaon")
+
+    # Loop through the bins and fill the 2D histogram
+    for i in range(1, nbins + 1):
+        masspion_value = masspion_hist.GetBinContent(i)
+        masskaon_value = masskaon_hist.GetBinContent(i)
+
+        masspion_bin_center = masspion_hist.GetBinCenter(i)
+        masskaon_bin_center = masskaon_hist.GetBinCenter(i)
+
+        hist_2d.Fill(masspion_bin_center, masskaon_bin_center)
+
+    # Create a canvas to draw the histogram
+    C = ROOT.TCanvas("","")
+    hist_2d.Draw("COLZ")  # "COLZ" gives a color map plot for the 2D histogram
+    C.Update()
+
+    # Start the ROOT application to visualize the plot
+    ROOT.gApplication.Run()
+
+# Call the function to plot the histograms
+Pion_kaonmass()
