@@ -1,0 +1,5 @@
+infile = open("read.txt", "r")
+data = infile.read()
+print(data)
+infile.close()
+

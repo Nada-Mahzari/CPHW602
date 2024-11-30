@@ -1,0 +1,130 @@
+#include <iostream>
+#include <TFile.h>
+#include <TTree.h>
+#include <TGraphErrors.h>
+#include <TCanvas.h>
+#include <TLegend.h>
+#include <TApplication.h>
+
+int main() {
+    // Open the ROOT file
+    TFile *file = TFile::Open("mlpHiggs.root", "READ");
+    if (!file || file->IsZombie()) {
+        std::cerr << "Error opening file" << std::endl;
+        return -1;
+    }
+
+    // Get signal and background trees
+    TTree *sig_tree = (TTree*)file->Get("sig_filtered");
+    TTree *bg_tree = (TTree*)file->Get("bg_filtered");
+
+    // Get total number of signal and background events
+    int total_signal_events = sig_tree->GetEntries();
+    int total_background_events = bg_tree->GetEntries();
+
+    // Initialize graphs for efficiency, purity, and their product
+    TGraphErrors *efficiency_graph = new TGraphErrors();
+    TGraphErrors *purity_graph = new TGraphErrors();
+    TGraphErrors *product_graph = new TGraphErrors();  // New graph for the product
+
+    // Define the range of acolinearity thresholds to evaluate
+    for (int acolin_threshold = 35; acolin_threshold < 180; ++acolin_threshold) {
+        int signal_entry_count = 0;  // Count valid signal entries for each threshold
+        int background_entry_count = 0;  // Count valid background entries for each threshold
+
+        // Declare variable to hold the acolinearity value
+        float acolin;
+
+        // Loop over signal entries
+        for (int i = 0; i < total_signal_events; ++i) {
+            sig_tree->GetEntry(i);
+            sig_tree->SetBranchAddress("acolin", &acolin);
+            // Count valid signal entries based on the acolinearity threshold
+            if (acolin >= acolin_threshold) {
+                signal_entry_count++;
+            }
+        }
+
+        // Loop over background entries
+        for (int j = 0; j < total_background_events; ++j) {
+            bg_tree->GetEntry(j);
+            bg_tree->SetBranchAddress("acolin", &acolin);
+            // Count valid background entries based on the acolinearity threshold
+            if (acolin >= acolin_threshold) {
+                background_entry_count++;
+            }
+        }
+
+        // Calculate efficiency
+        double efficiency = (total_signal_events > 0) ? (double)signal_entry_count / total_signal_events : 0;
+        double efficiency_error = (total_signal_events > 0) ? sqrt(efficiency * (1 - efficiency) / total_signal_events) : 0;
+
+        // Calculate purity
+        int total_valid_events = signal_entry_count + background_entry_count;
+        double purity = (total_valid_events > 0) ? (double)signal_entry_count / total_valid_events : 0;
+        double purity_error = (total_valid_events > 0) ? sqrt(purity * (1 - purity) / total_valid_events) : 0;
+
+        // Calculate the product of efficiency and purity
+        double product = efficiency * purity;
+        double product_error = (efficiency > 0 && purity > 0) ? product * sqrt(pow(efficiency_error / efficiency, 2) + pow(purity_error / purity, 2)) : 0;
+
+        // Set points in the graphs
+        efficiency_graph->SetPoint(efficiency_graph->GetN(), acolin_threshold, efficiency);
+        efficiency_graph->SetPointError(efficiency_graph->GetN() - 1, 0, efficiency_error);
+
+        purity_graph->SetPoint(purity_graph->GetN(), acolin_threshold, purity);
+        purity_graph->SetPointError(purity_graph->GetN() - 1, 0, purity_error);
+
+        product_graph->SetPoint(product_graph->GetN(), acolin_threshold, product);
+        product_graph->SetPointError(product_graph->GetN() - 1, 0, product_error);
+    }
+
+    // Configure graph appearance for efficiency
+    efficiency_graph->SetTitle("Signal Efficiency, Purity, and Product vs Acolinearity");
+    efficiency_graph->GetXaxis()->SetTitle("Acolinearity (degrees)");
+    efficiency_graph->GetYaxis()->SetTitle("Signal Efficiency / Purity / Product");
+    efficiency_graph->SetLineColor(kBlue);
+    efficiency_graph->SetMarkerStyle(20);
+    efficiency_graph->SetMarkerColor(kBlue);
+
+    // Configure graph appearance for purity
+    purity_graph->SetLineColor(kRed);
+    purity_graph->SetMarkerStyle(21);
+    purity_graph->SetMarkerColor(kRed);
+
+    // Configure graph appearance for product
+    product_graph->SetLineColor(kGreen + 2);
+    product_graph->SetMarkerStyle(22);
+    product_graph->SetMarkerColor(kGreen + 2);
+
+    // Create and configure canvas
+    TCanvas *canvas = new TCanvas("canvas", "Signal Efficiency, Purity, and Product vs Acolinearity", 800, 600);
+    canvas->SetGrid();
+
+    // Draw the graphs
+    efficiency_graph->Draw("ALP");  // Draw efficiency graph
+    purity_graph->Draw("LP SAME");  // Draw purity graph on the same canvas
+    product_graph->Draw("LP SAME");  // Draw product graph on the same canvas
+
+    // Set Y-axis range from 0.0 to 1.0
+    efficiency_graph->GetYaxis()->SetRangeUser(0.009, 1.01);
+
+    // Create and configure the legend
+    TLegend *legend = new TLegend(0.17, 0.17, 0.3, 0.34);  // Define legend position
+    legend->SetHeader("Legend");  // Add a header to the legend
+    legend->AddEntry(efficiency_graph, "Efficiency", "lp");  // Add efficiency entry
+    legend->AddEntry(purity_graph, "Purity", "lp");  // Add purity entry
+    legend->AddEntry(product_graph, "Product", "lp");  // Add product entry
+    legend->Draw();  // Draw the legend
+
+    canvas->Update();
+
+    // Run the ROOT application to display the canvas
+    TApplication app("app", nullptr, nullptr);
+    app.Run();
+
+    // Close the file
+    file->Close();
+
+    return 0;
+}
