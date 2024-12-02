@@ -24,9 +24,11 @@ Instructions:
    - Y-axis: Efficiency.
    - Include a legend for efficiency and confidence intervals.
 */
+
+
 #include <TH1F.h>
 #include <TCanvas.h>
-#include <TGraphErrors.h>
+#include <TGraphAsymmErrors.h>
 #include <TMath.h>
 #include <TLegend.h>
 #include <iostream>
@@ -34,90 +36,97 @@ Instructions:
 #include <TTree.h>
 
 void Efficiency() {
-   
+    // File path
     const char* file_path = "/Users/ndawyalmhzry/Master_project/ComputationalCourse/PythonRootMat/ROOT/mlpHiggs.root";
 
-   
+    // Open the ROOT file
     TFile *file = TFile::Open(file_path, "READ");
     if (!file || file->IsZombie()) {
         std::cerr << "Error opening file!" << std::endl;
         return;
     }
 
-   
+    // Access signal tree
     TTree *sig_tree = (TTree*)file->Get("sig_filtered");
-    TTree *bg_tree = (TTree*)file->Get("bg_filtered");
-
-    if (!sig_tree || !bg_tree) {
-        std::cerr << "Signal or Background tree not found!" << std::endl;
+    if (!sig_tree) {
+        std::cerr << "Signal tree not found!" << std::endl;
         return;
     }
 
-   
+    // Variables to read from the tree
     float acollinearity;
-    int signal_count, total_signal_count;
+    int total_signal_count;
 
-   
     sig_tree->SetBranchAddress("acolin", &acollinearity);
-    sig_tree->SetBranchAddress("signal_count", &signal_count);
-    sig_tree->SetBranchAddress("total_signal_count", &total_signal_count);
+    sig_tree->SetBranchAddress("signal_count", &total_signal_count);
 
-   
-    TCanvas *canvas = new TCanvas("canvas", "Efficiency with Confidence Intervals", 800, 600);
+    // Define acollinearity thresholds
+    const int num_thresholds = 121; // From 80 to 200 inclusive
+    double thresholds[num_thresholds];
+    double efficiencies[num_thresholds];
+    double lower_bounds[num_thresholds];
+    double upper_bounds[num_thresholds];
+    double errors_low[num_thresholds];
+    double errors_high[num_thresholds];
 
-    
-    TGraphErrors *efficiency_graph = new TGraphErrors();
-    int point_index = 0;
+    for (int i = 0; i < num_thresholds; i++) {
+        thresholds[i] = 80 + i;
+        efficiencies[i] = 0.0;
+        lower_bounds[i] = 0.0;
+        upper_bounds[i] = 0.0;
+    }
 
-    
-    for (int threshold = 80; threshold <= 200; threshold++) {
-       
-        int count_signal = 0;
-        int count_total_signal = 0;
-        for (int i = 0; i < sig_tree->GetEntries(); ++i) {
-            sig_tree->GetEntry(i);
-            if (acollinearity >= threshold) {
-                count_signal += signal_count;
-                count_total_signal += total_signal_count;
+    // Total number of events in signal tree
+    int n_events = sig_tree->GetEntries();
+
+    // Calculate efficiency and confidence intervals for each threshold
+    for (int i = 0; i < num_thresholds; i++) {
+        double threshold = thresholds[i];
+        int passed_signal_count = 0;
+
+        for (int j = 0; j < n_events; j++) {
+            sig_tree->GetEntry(j);
+            if (acollinearity <= threshold) {
+                passed_signal_count++;
             }
         }
 
-       
-        if (count_total_signal > 0) {
-            double efficiency = (double)count_signal / count_total_signal;
+        double efficiency = (double)passed_signal_count / total_signal_count;
+        efficiencies[i] = efficiency;
 
-           
-            double z = 1.96;
-            double error = z * TMath::Sqrt(efficiency * (1 - efficiency) / count_total_signal);
+        // Confidence interval calculation
+        double z = 1.96;
+        double error = z * TMath::Sqrt(efficiency * (1 - efficiency) / total_signal_count);
+        lower_bounds[i] = TMath::Max(0.0, efficiency - error);
+        upper_bounds[i] = TMath::Min(1.0, efficiency + error);
 
-           
-            efficiency_graph->SetPoint(point_index, threshold, efficiency);
-            efficiency_graph->SetPointError(point_index, 0, error); 
-            point_index++;
-        }
+        // Errors for plotting
+        errors_low[i] = efficiency - lower_bounds[i];
+        errors_high[i] = upper_bounds[i] - efficiency;
     }
 
+    // Create graph for efficiency with confidence intervals
+    TCanvas *canvas = new TCanvas("canvas", "Efficiency with 95% Confidence Intervals", 800, 600);
+    TGraphAsymmErrors *efficiency_graph = new TGraphAsymmErrors(num_thresholds, thresholds, efficiencies, 0, 0, errors_low, errors_high);
 
     efficiency_graph->SetTitle("Efficiency with 95% Confidence Intervals");
     efficiency_graph->GetXaxis()->SetTitle("Acollinearity Threshold (Degrees)");
     efficiency_graph->GetYaxis()->SetTitle("Efficiency");
-
     efficiency_graph->SetMarkerStyle(20);
     efficiency_graph->SetMarkerColor(kBlue);
     efficiency_graph->SetLineColor(kBlue);
 
-
+    // Draw the graph
     efficiency_graph->Draw("AP");
 
-
+    // Add legend
     TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
-    legend->AddEntry(efficiency_graph, "Efficiency", "p");
+    legend->AddEntry(efficiency_graph, "Efficiency (95% CI)", "p");
     legend->Draw();
 
-
+    // Save the plot
     canvas->SaveAs("efficiency_with_confidence_intervals.png");
 
-
+    // Close the file
     file->Close();
 }
-
